@@ -1,36 +1,24 @@
-# Datasets
+# Datasets in the case
 
-All demo CSVs live in [`data/`](../data/) with columns `x`, `y`, and ground-truth
-`cat` (three classes × 1000 points).
+CSVs in [`data/`](../data/): `x`, `y`, and ground-truth `cat` (3 × 1000 points). Labels exist so unsupervised partitions can be scored with ARI / NMI against scikit-learn.
 
-| File | Geometry | Hard for | Friendly to |
-|------|----------|----------|-------------|
-| `mv3.csv` | Separated near-spherical Gaussians | — | K-Means, Soft K-Means, GMM, Ward |
-| `mv.csv` | Mildly overlapping Gaussians (one tilted) | Hard K-Means | GMM |
-| `mv2.csv` | Elongated / correlated Gaussians | K-Means | GMM |
-| `unif.csv` | Overlapping uniform rectangles | Most methods | Density methods (sometimes) |
+<p align="center">
+  <img src="../assets/cluster_categories.png" alt="Four synthetic datasets with ground-truth labels" width="640"/>
+</p>
 
-## Generative recipes
+**Figure — Panel layout.** Each subplot is one CSV; color encodes `cat`. Reading left-to-right, top-to-bottom: `mv`, `unif`, `mv2`, `mv3`.
 
-The checked-in files are the canonical artifacts used by tests and README
-numbers. To recreate the **same family** of geometries:
+| File | Role |
+|------|------|
+| `mv3.csv` | Control — separated near-spherical Gaussians; all methods succeed |
+| `mv.csv` | Mild overlap + tilt — hard K-Means slips; GMM recovers |
+| `mv2.csv` | Elongated / correlated Gaussians — largest K-Means ↔ GMM gap |
+| `unif.csv` | Overlapping rectangles — stress test; absolute ARI stays low |
 
-```bash
-python3 scripts/generate_data.py
-# writes data/*-generated.csv
+<p align="center">
+  <img src="../assets/mv2_kmeans_vs_gmm.png" alt="mv2 ground truth vs K-Means vs GMM" width="780"/>
+</p>
 
-python3 scripts/generate_data.py --overwrite-canonical  # replace data/*.csv
-```
+**Figure — Why `mv2` is the headline dataset.** Truth (left) is three diagonal ellipses. K-Means (middle) imposes spherical Voronoi cells. GMM (right) recovers the axes of correlation.
 
-Approximate recipes (see `scripts/generate_data.py` for exact covariances):
-
-- **mv / mv2 / mv3** — draws from three 2-D multivariate normals with different
-  means and covariance orientations.
-- **unif** — three axis-aligned uniform rectangles that deliberately overlap:
-  left vertical strip, center horizontal band, right vertical strip.
-
-## Why keep labeled data?
-
-Ground-truth `cat` labels let us score unsupervised models with Adjusted Rand
-Index and NMI — the key proof that custom implementations recover structure
-comparably to scikit-learn.
+**Generation (same family as the checked-in files):** `mv*` = three 2-D Gaussians with distinct means/covariances; `unif` = three overlapping axis-aligned rectangles. Draws: `scripts/generate_data.py`.
