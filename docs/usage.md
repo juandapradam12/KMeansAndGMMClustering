@@ -3,19 +3,31 @@
 ## Install
 
 ```bash
-python3 -m pip install -r requirements.txt
+python3 -m pip install -e ".[dev]"
 ```
 
-The `clustering` package is importable from the repository root (no install
-step required for local use).
+This installs the `clustering` package and the `cluster-bench` CLI.
+
+For a minimal runtime-only install:
+
+```bash
+python3 -m pip install -e .
+```
 
 ## Quick start
 
 ```python
 import pandas as pd
-from clustering import KMeans, SoftKMeans, GaussianMixtureModel, clustering_report
+from clustering import (
+    KMeans,
+    SoftKMeans,
+    GaussianMixtureModel,
+    DBSCAN,
+    AgglomerativeClustering,
+    clustering_report,
+)
 
-df = pd.read_csv("data/mv.csv", index_col=0)
+df = pd.read_csv("data/mv3.csv", index_col=0)
 X = df[["x", "y"]].to_numpy()
 y = df["cat"].to_numpy()
 
@@ -24,6 +36,10 @@ print(clustering_report(X, y, km.labels_, km.cluster_centers_))
 
 gmm = GaussianMixtureModel(n_components=3, random_state=0).fit(X)
 print("BIC:", gmm.bic(X), "AIC:", gmm.aic(X))
+
+db = DBSCAN(eps=0.35, min_samples=12).fit(X)
+agg = AgglomerativeClustering(n_clusters=3, linkage="ward").fit(X)
+print(db.n_clusters_, agg.n_clusters_)
 ```
 
 ## Choosing \(k\)
@@ -49,15 +65,26 @@ plot_kmeans_comparison(dfs, n_clusters=3)
 plot_soft_assignments(dfs, model="gmm", n_clusters=3)
 ```
 
-## Benchmarks & tests
+## CLI, tests, and lint
 
 ```bash
-python3 scripts/benchmark.py
-python3 -m pytest tests/ -v
+cluster-bench           # full table
+cluster-bench --quick   # mv3 only (CI smoke)
+
+pytest -v
+ruff check clustering tests scripts
+mypy clustering
+```
+
+## Datasets
+
+See [datasets.md](datasets.md). Regenerate similar geometries with:
+
+```bash
+python3 scripts/generate_data.py
 ```
 
 ## Notebook
 
-Open `notebooks/Clustering_Methods.ipynb` for a narrative walkthrough that
-loads the datasets, fits all three custom models, compares them with
-scikit-learn, and plots model-selection curves.
+Open `notebooks/Clustering_Methods.ipynb` for a narrative walkthrough with
+plots, soft assignments, and model-selection curves.

@@ -62,6 +62,7 @@ class GaussianMixtureModel:
                 random_state=self.random_state,
                 max_iter=25,
             ).fit(points, initial_centers=means)
+            assert km.cluster_centers_ is not None
             means = km.cluster_centers_
 
         weights = np.full(self.n_components, 1.0 / self.n_components)
@@ -117,7 +118,7 @@ class GaussianMixtureModel:
         self,
         points: np.ndarray,
         initial_means: np.ndarray | None = None,
-    ) -> "GaussianMixtureModel":
+    ) -> GaussianMixtureModel:
         points = np.asarray(points, dtype=float)
         if initial_means is not None:
             means = np.asarray(initial_means, dtype=float).copy()
@@ -146,6 +147,10 @@ class GaussianMixtureModel:
                 break
             prev_ll = log_likelihood
 
+        if responsibilities is None:
+            responsibilities, log_likelihood = self._e_step(
+                points, means, weights, covariances
+            )
         self.means_ = means
         self.weights_ = weights
         self.covariances_ = covariances
@@ -155,7 +160,7 @@ class GaussianMixtureModel:
         return self
 
     def predict_proba(self, points: np.ndarray) -> np.ndarray:
-        if self.means_ is None:
+        if self.means_ is None or self.weights_ is None or self.covariances_ is None:
             raise RuntimeError("Model has not been fit yet")
         responsibilities, _ = self._e_step(
             np.asarray(points, dtype=float),
@@ -171,7 +176,9 @@ class GaussianMixtureModel:
     def fit_predict(
         self, points: np.ndarray, initial_means: np.ndarray | None = None
     ) -> np.ndarray:
-        return self.fit(points, initial_means=initial_means).labels_
+        self.fit(points, initial_means=initial_means)
+        assert self.labels_ is not None
+        return self.labels_
 
     def bic(self, points: np.ndarray) -> float:
         """Bayesian Information Criterion (lower is better)."""
@@ -203,7 +210,7 @@ class GaussianMixtureModel:
     @property
     def clusters(self) -> list[tuple[np.ndarray, float, np.ndarray]]:
         """Legacy tuple view: ``(mu, pi, Sigma)`` per component."""
-        if self.means_ is None:
+        if self.means_ is None or self.weights_ is None or self.covariances_ is None:
             raise RuntimeError("Model has not been fit yet")
         return [
             (self.means_[k], float(self.weights_[k]), self.covariances_[k])

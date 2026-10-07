@@ -1,7 +1,7 @@
 # Algorithms
 
-This project implements three classical clustering methods from scratch and
-compares them with scikit-learn on labeled 2-D synthetic datasets.
+This project implements classical clustering methods and compares them with
+scikit-learn on labeled 2-D synthetic datasets.
 
 ## K-Means++
 
@@ -44,10 +44,6 @@ controls softness: smaller values approach hard K-Means; larger values blend
 clusters more aggressively. Responsibilities are computed with a log-sum-exp
 trick for numerical stability.
 
-> **Note:** An earlier notebook version used \(\|x_i-\mu_k\|\) instead of the
-> squared norm inside the exponential. The package implementation follows the
-> standard squared-distance formulation above.
-
 ## Gaussian Mixture Models (EM)
 
 A GMM models the density as
@@ -71,6 +67,23 @@ Implementation details that improve robustness:
 - Log-domain responsibility normalization
 - AIC / BIC helpers for choosing the number of components
 
+## DBSCAN
+
+Density-Based Spatial Clustering of Applications with Noise:
+
+1. Mark points with at least `min_samples` neighbors within radius `eps` as **core**.
+2. Grow clusters by BFS through neighborhoods of core points.
+3. Label non-core, non-reachable points as **noise** (`-1`).
+
+Neighbor queries use a KD-tree. DBSCAN does not require choosing \(k\) up front,
+but `eps` / `min_samples` are sensitive to scale.
+
+## Agglomerative hierarchical clustering
+
+Bottom-up merging of clusters using SciPy linkage (`ward`, `average`,
+`complete`, or `single`), then cutting the dendrogram into `n_clusters` flat
+groups. Ward linkage is a strong baseline on compact spherical blobs.
+
 ## When to prefer which model
 
 | Method | Strengths | Limitations |
@@ -78,6 +91,8 @@ Implementation details that improve robustness:
 | K-Means | Fast, simple, strong spherical clusters | Hard boundaries; sensitive to scale |
 | Soft K-Means | Graded memberships; tunable softness | Still isotropic distance geometry |
 | GMM | Elliptical clusters; probabilistic density | More parameters; needs regularization |
+| DBSCAN | Arbitrary shapes; explicit noise label | Scale-sensitive hyperparameters |
+| Agglomerative | No random init; dendrogram view | \(O(n^2)\) memory/time; linkage choice matters |
 
 ## Evaluation
 

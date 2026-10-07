@@ -50,7 +50,7 @@ class KMeans:
             return points[idx].copy()
         raise ValueError("init must be 'k-means++' or 'random'")
 
-    def fit(self, points: np.ndarray, initial_centers: np.ndarray | None = None) -> "KMeans":
+    def fit(self, points: np.ndarray, initial_centers: np.ndarray | None = None) -> KMeans:
         points = np.asarray(points, dtype=float)
         centers = (
             np.asarray(initial_centers, dtype=float).copy()
@@ -89,13 +89,16 @@ class KMeans:
     def predict(self, points: np.ndarray) -> np.ndarray:
         if self.cluster_centers_ is None:
             raise RuntimeError("Model has not been fit yet")
-        distances = pairwise_squared_distances(np.asarray(points, dtype=float), self.cluster_centers_)
+        points_arr = np.asarray(points, dtype=float)
+        distances = pairwise_squared_distances(points_arr, self.cluster_centers_)
         return np.argmin(distances, axis=1)
 
     def fit_predict(
         self, points: np.ndarray, initial_centers: np.ndarray | None = None
     ) -> np.ndarray:
-        return self.fit(points, initial_centers=initial_centers).labels_
+        self.fit(points, initial_centers=initial_centers)
+        assert self.labels_ is not None
+        return self.labels_
 
 
 @dataclass
@@ -145,7 +148,7 @@ class SoftKMeans:
 
     def fit(
         self, points: np.ndarray, initial_centers: np.ndarray | None = None
-    ) -> "SoftKMeans":
+    ) -> SoftKMeans:
         points = np.asarray(points, dtype=float)
         centers = (
             np.asarray(initial_centers, dtype=float).copy()
@@ -167,6 +170,8 @@ class SoftKMeans:
             if shift <= self.tol:
                 break
 
+        if responsibilities is None:
+            responsibilities = self._responsibilities(points, centers)
         self.cluster_centers_ = centers
         self.responsibilities_ = responsibilities
         self.labels_ = np.argmax(responsibilities, axis=1)
@@ -175,7 +180,9 @@ class SoftKMeans:
     def predict_proba(self, points: np.ndarray) -> np.ndarray:
         if self.cluster_centers_ is None:
             raise RuntimeError("Model has not been fit yet")
-        return self._responsibilities(np.asarray(points, dtype=float), self.cluster_centers_)
+        return self._responsibilities(
+            np.asarray(points, dtype=float), self.cluster_centers_
+        )
 
     def predict(self, points: np.ndarray) -> np.ndarray:
         return np.argmax(self.predict_proba(points), axis=1)
@@ -183,4 +190,6 @@ class SoftKMeans:
     def fit_predict(
         self, points: np.ndarray, initial_centers: np.ndarray | None = None
     ) -> np.ndarray:
-        return self.fit(points, initial_centers=initial_centers).labels_
+        self.fit(points, initial_centers=initial_centers)
+        assert self.labels_ is not None
+        return self.labels_

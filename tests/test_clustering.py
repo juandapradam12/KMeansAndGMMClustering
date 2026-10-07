@@ -12,6 +12,8 @@ from sklearn.metrics import adjusted_rand_score
 from sklearn.mixture import GaussianMixture as SkGaussianMixture
 
 from clustering import (
+    DBSCAN,
+    AgglomerativeClustering,
     GaussianMixtureModel,
     KMeans,
     SoftKMeans,
@@ -24,20 +26,20 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
 @pytest.fixture(scope="module")
-def mv3_points_labels():
+def mv3_points_labels() -> tuple[np.ndarray, np.ndarray]:
     """Well-separated spherical clusters — friendly to K-Means."""
     df = pd.read_csv(DATA_DIR / "mv3.csv", index_col=0)
     return df[["x", "y"]].to_numpy(dtype=float), df["cat"].to_numpy()
 
 
 @pytest.fixture(scope="module")
-def mv2_points_labels():
+def mv2_points_labels() -> tuple[np.ndarray, np.ndarray]:
     """Overlapping / anisotropic clusters — GMM should excel."""
     df = pd.read_csv(DATA_DIR / "mv2.csv", index_col=0)
     return df[["x", "y"]].to_numpy(dtype=float), df["cat"].to_numpy()
 
 
-def test_kmeans_plusplus_shape_and_uniqueness():
+def test_kmeans_plusplus_shape_and_uniqueness() -> None:
     rng = np.random.default_rng(0)
     points = rng.normal(size=(100, 2))
     centers = kmeans_plusplus(points, 4, random_state=0)
@@ -45,11 +47,17 @@ def test_kmeans_plusplus_shape_and_uniqueness():
     assert np.isfinite(centers).all()
 
 
-def test_kmeans_matches_sklearn_and_recovers_labels(mv3_points_labels):
+def test_kmeans_matches_sklearn_and_recovers_labels(
+    mv3_points_labels: tuple[np.ndarray, np.ndarray],
+) -> None:
     points, labels_true = mv3_points_labels
     init = kmeans_plusplus(points, 3, random_state=7)
     custom = KMeans(n_clusters=3, random_state=7).fit(points, initial_centers=init)
     sk = SkKMeans(n_clusters=3, init=init, n_init=1, random_state=7).fit(points)
+
+    assert custom.labels_ is not None
+    assert custom.cluster_centers_ is not None
+    assert custom.inertia_ is not None
 
     ari_custom = adjusted_rand_score(labels_true, custom.labels_)
     ari_between = adjusted_rand_score(custom.labels_, sk.labels_)
@@ -60,17 +68,26 @@ def test_kmeans_matches_sklearn_and_recovers_labels(mv3_points_labels):
     assert np.allclose(custom.cluster_centers_, sk.cluster_centers_, atol=0.2)
 
 
-def test_soft_kmeans_uses_squared_distance_and_converges(mv3_points_labels):
+def test_soft_kmeans_uses_squared_distance_and_converges(
+    mv3_points_labels: tuple[np.ndarray, np.ndarray],
+) -> None:
     points, labels_true = mv3_points_labels
     model = SoftKMeans(n_clusters=3, beta=0.3, random_state=0).fit(points)
+    assert model.responsibilities_ is not None
+    assert model.labels_ is not None
     assert model.responsibilities_.shape == (len(points), 3)
     assert np.allclose(model.responsibilities_.sum(axis=1), 1.0)
     assert adjusted_rand_score(labels_true, model.labels_) > 0.95
 
 
-def test_gmm_recovers_anisotropic_clusters(mv2_points_labels):
+def test_gmm_recovers_anisotropic_clusters(
+    mv2_points_labels: tuple[np.ndarray, np.ndarray],
+) -> None:
     points, labels_true = mv2_points_labels
     model = GaussianMixtureModel(n_components=3, random_state=0).fit(points)
+    assert model.responsibilities_ is not None
+    assert model.weights_ is not None
+    assert model.labels_ is not None
     assert model.responsibilities_.shape == (len(points), 3)
     assert np.allclose(model.weights_.sum(), 1.0, atol=1e-5)
     assert adjusted_rand_score(labels_true, model.labels_) > 0.8
@@ -78,17 +95,20 @@ def test_gmm_recovers_anisotropic_clusters(mv2_points_labels):
     assert model.aic(points) > 0
 
 
-def test_gmm_comparable_to_sklearn(mv2_points_labels):
+def test_gmm_comparable_to_sklearn(
+    mv2_points_labels: tuple[np.ndarray, np.ndarray],
+) -> None:
     points, labels_true = mv2_points_labels
     custom = GaussianMixtureModel(n_components=3, random_state=1).fit(points)
     sk = SkGaussianMixture(n_components=3, random_state=1).fit(points)
+    assert custom.labels_ is not None
     ari_custom = adjusted_rand_score(labels_true, custom.labels_)
     ari_sk = adjusted_rand_score(labels_true, sk.predict(points))
     assert ari_custom > 0.8
     assert abs(ari_custom - ari_sk) < 0.15
 
 
-def test_empty_cluster_reseed():
+def test_empty_cluster_reseed() -> None:
     points = np.array(
         [
             [0.0, 0.0],
@@ -102,13 +122,18 @@ def test_empty_cluster_reseed():
         dtype=float,
     )
     model = KMeans(n_clusters=3, random_state=0, max_iter=50).fit(points)
+    assert model.labels_ is not None
+    assert model.cluster_centers_ is not None
     assert len(np.unique(model.labels_)) == 3
     assert np.isfinite(model.cluster_centers_).all()
 
 
-def test_clustering_report_and_model_selection(mv3_points_labels):
+def test_clustering_report_and_model_selection(
+    mv3_points_labels: tuple[np.ndarray, np.ndarray],
+) -> None:
     points, labels_true = mv3_points_labels
     model = KMeans(n_clusters=3, random_state=0).fit(points)
+    assert model.labels_ is not None
     report = clustering_report(
         points, labels_true, model.labels_, model.cluster_centers_
     )
@@ -120,3 +145,25 @@ def test_clustering_report_and_model_selection(mv3_points_labels):
 
     ic = gmm_information_criteria(points, range(2, 5), random_state=0)
     assert suggest_k(ic, "bic") in {2, 3, 4}
+
+
+def test_dbscan_finds_separated_blobs(
+    mv3_points_labels: tuple[np.ndarray, np.ndarray],
+) -> None:
+    points, labels_true = mv3_points_labels
+    model = DBSCAN(eps=0.35, min_samples=12).fit(points)
+    assert model.labels_ is not None
+    assert model.n_clusters_ >= 2
+    # Ignore pure-noise failures; on mv3 we expect strong agreement.
+    labeled = model.labels_ >= 0
+    assert labeled.mean() > 0.9
+    assert adjusted_rand_score(labels_true[labeled], model.labels_[labeled]) > 0.85
+
+
+def test_agglomerative_ward_recovers_labels(
+    mv3_points_labels: tuple[np.ndarray, np.ndarray],
+) -> None:
+    points, labels_true = mv3_points_labels
+    model = AgglomerativeClustering(n_clusters=3, linkage="ward").fit(points)
+    assert model.labels_ is not None
+    assert adjusted_rand_score(labels_true, model.labels_) > 0.95
