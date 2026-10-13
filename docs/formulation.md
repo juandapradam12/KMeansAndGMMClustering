@@ -99,7 +99,7 @@ On the spherical control, inertia and information criteria recover the true $k$:
 
 ## DBSCAN & Ward
 
-- **DBSCAN:** core if $|N_{\varepsilon}(x)| \ge \texttt{min\_samples}$; expand by density-reachability; else noise ($-1$).
+- **DBSCAN:** core if $|N_{\varepsilon}(x)| \ge$ `min_samples`; expand by density-reachability; else noise ($-1$).
 - **Ward:** agglomerative linkage, flat cut into $k$ clusters — strong on compact blobs (`mv3`).
 
 ## Scoring across the case
